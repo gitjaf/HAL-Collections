@@ -11,11 +11,12 @@ class HALCollectionsGrailsPlugin {
     ]
 
     // TODO Fill in these fields
-    def title = "HALC ollections Plugin" // Headline display name of the plugin
+    def title = "HAL Collections Plugin" // Headline display name of the plugin
     def author = "Your name"
     def authorEmail = ""
     def description = '''\
-Brief summary/description of the plugin.
+		Un plugin que hace uso del plugin HAL para crear una representacion HAL paginada
+de una lista de recursos.
 '''
 
     // URL to the plugin's documentation
