@@ -1,58 +1,106 @@
 package org.sigma.code.plugins
 
+import java.math.*
+import org.codehaus.groovy.grails.commons.GrailsApplication
+
 class HalCollectionBuilderService {
 
 	def halBuilderService
 
-	def grailsApplication
+	def page = 0
 
-	def buildRepresentation = { model, String controller, String action, HashMap queryParams ->
+	def itemsPerPage = 10
 
-		
-		//FIXME Arreglar el caso en el que se pasa un mapa vacio de queryParams sin offset ni max
-		
-		//TODO Delegar si es posible la creacion de links.
-		
-		 //TODO intentar usar menos parametros
+	def lastPage = 0	
+
+	def total = 0
+
+	def excludedParams = ['action', 'controller' ]
+
+	def buildRepresentation = {model, String httpMethod, queryParams ->
 		
 		def representation = new HashMap()
 
 		def links = new HashMap()
 
-		def offset = (queryParams.offset) ? queryParams.offset : 0
+		def controller = queryParams.controller
 
-		def max = (queryParams.max) ? queryParams.max : 10
+		def action = queryParams.action.get(httpMethod)
 
-		def total = model.size
+		println queryParams
+
+		println controller
+
+		println action
+
+		excludedParams.each{queryParams.remove(it)}
+
+		queryParams.itemsPerPage = queryParams.itemsPerPage ?: itemsPerPage
+
+		itemsPerPage = queryParams.itemsPerPage as Integer
+
+		queryParams.page = (queryParams.page ? queryParams.page : page)
+
+		page = queryParams.page as Integer
+
+		total = model.size
+
+		lastPage = (new BigDecimal((total / itemsPerPage), new MathContext(1, RoundingMode.DOWN))) as Integer
+
+		queryParams.pages = 0..lastPage
 
 		representation.data = queryParams
 
 		links.self = this.getLinkTo(controller, action, queryParams)
 
-		if(offset > 0){
-			links."previous" = this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
-				qp << (k == "offset" ? [k:(Math.max((v - max),0))] : [k:v]) })
-		}
+		representation._links = this.getNavigationLinks(controller, action, links, queryParams)
 
-		if(offset != total) {
-			links."next" = this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
-				qp << ("$k" == "offset" ? ["$k":(Math.min((v + max), total))] : ["$k":v]) })
-		}
-
-		representation._links = links
-
-		representation._embedded = ["collection" : halBuilderService.buildModelList(model[offset..Math.min((offset + max), total)])]
+		representation._embedded = this.getEmbedded(queryParams, model)
 
 		return representation
-	}
-
-	protected getLinkTo = { String controller, String action, HashMap queryParams ->
-
-		return (halBuilderService.getLinkTo(controller, action) + queryParams.inject("?") { qp, k, v -> qp << k + "=" + v })
 
 	}
 
+	protected getLinkTo = { String controller, String action, queryParams ->
+
+		def query = ''
+
+		if(!queryParams.isEmpty()){
+			
+			query = queryParams.inject([]) { qp, k, v -> qp << (k + "=" + v)}
+
+			query = "?" + query.join("&")
+		}
+
+		return (halBuilderService.getLinkTo(controller, action) + query)
+
+	}
 
 
+	protected getNavigationLinks = {String controller, String action, HashMap links, queryParams -> 
+
+		if(page > 0){
+			links."previous" = this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
+				qp << ("$k" == "page" ? ["$k":(Math.max((page - 1),0))] : ["$k":v] )})
+		}
+
+		if(page < lastPage && total > (itemsPerPage * page)) {
+			links."next" = this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
+				qp << ("$k" == "page" ? ["$k": Math.min((page + 1), lastPage)] : ["$k":v]) })
+		}
+
+		return links
+	}
+
+
+	protected getEmbedded = { queryParams, model -> 
+
+		def offset = itemsPerPage * ((page < lastPage) ? page : lastPage) // Starting item of the page
+
+		def max = (itemsPerPage + offset - 1) // Max quantity of items
+
+		return ["collection" : halBuilderService.buildModelList(model[offset..Math.min(max, (total - 1))])]
+
+	}
 
 }
