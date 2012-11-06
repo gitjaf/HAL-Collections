@@ -11,11 +11,13 @@ class HalCollectionBuilderService {
 
 	def itemsPerPage = 10
 
+	def visiblePages = 5
+
 	def lastPage = 0	
 
 	def total = 0
 
-	def excludedParams = ['action', 'controller' ]
+	def excludedParams = ['action', 'controller']
 
 	def buildRepresentation = {model, String httpMethod, queryParams ->
 		
@@ -26,12 +28,6 @@ class HalCollectionBuilderService {
 		def controller = queryParams.controller
 
 		def action = queryParams.action.get(httpMethod)
-
-		println queryParams
-
-		println controller
-
-		println action
 
 		excludedParams.each{queryParams.remove(it)}
 
@@ -46,10 +42,10 @@ class HalCollectionBuilderService {
 		total = model.size
 
 		lastPage = (new BigDecimal((total / itemsPerPage), new MathContext(1, RoundingMode.DOWN))) as Integer
+		
+		representation.data = queryParams.inject([:]) {qp, k, v -> qp << ["$k":v]}
 
-		queryParams.pages = 0..lastPage
-
-		representation.data = queryParams
+		representation.data.total = total
 
 		links.self = this.getLinkTo(controller, action, queryParams)
 
@@ -78,11 +74,18 @@ class HalCollectionBuilderService {
 
 
 	protected getNavigationLinks = {String controller, String action, HashMap links, queryParams -> 
-
+		
 		if(page > 0){
 			links."previous" = this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
 				qp << ("$k" == "page" ? ["$k":(Math.max((page - 1),0))] : ["$k":v] )})
 		}
+		
+		links.pages = ((Math.max(page - visiblePages, 0))..(Math.min(page + visiblePages, lastPage))).
+			collectEntries { it ->
+				["$it", this.getLinkTo(controller, action, queryParams.inject([:]){qp, k, v ->
+					qp << ("$k" == "page" ? ["$k" : it] : ["$k":v] )})]
+			}
+	
 
 		if(page < lastPage && total > (itemsPerPage * page)) {
 			links."next" = this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
@@ -91,7 +94,7 @@ class HalCollectionBuilderService {
 
 		return links
 	}
-
+	
 
 	protected getEmbedded = { queryParams, model -> 
 
