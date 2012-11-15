@@ -37,17 +37,17 @@ class HalCollectionBuilderService {
 
 		queryParams.page = (queryParams.page ? queryParams.page : page)
 
-		page = queryParams.page as Integer
-
 		total = model.size
 
 		lastPage = (new BigDecimal((total / itemsPerPage), new MathContext(1, RoundingMode.DOWN))) as Integer
-		
+
+		page = ((queryParams.page as Integer) <= lastPage ? queryParams.page as Integer : 0)
+
 		representation.data = queryParams.inject([:]) {qp, k, v -> qp << ["$k":v]}
 
 		representation.data.total = total
 
-		links.self = this.getLinkTo(controller, action, queryParams)
+		links.self = ['href' : this.getLinkTo(controller, action, queryParams)]
 
 		representation._links = this.getNavigationLinks(controller, action, links, queryParams)
 
@@ -76,20 +76,20 @@ class HalCollectionBuilderService {
 	protected getNavigationLinks = {String controller, String action, HashMap links, queryParams -> 
 		
 		if(page > 0){
-			links."previous" = this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
-				qp << ("$k" == "page" ? ["$k":(Math.max((page - 1),0))] : ["$k":v] )})
+			links."previous" = ['href' : this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
+				qp << ("$k" == "page" ? ["$k":(Math.max((page - 1),0))] : ["$k":v] )})]
 		}
 		
 		links.pages = ((Math.max(page - visiblePages, 0))..(Math.min(page + visiblePages, lastPage))).
 			collectEntries { it ->
-				["$it", this.getLinkTo(controller, action, queryParams.inject([:]){qp, k, v ->
-					qp << ("$k" == "page" ? ["$k" : it] : ["$k":v] )})]
+				["$it", ['href' : this.getLinkTo(controller, action, queryParams.inject([:]){qp, k, v ->
+					qp << ("$k" == "page" ? ["$k" : it] : ["$k":v] )})]]
 			}
 	
 
 		if(page < lastPage && total > (itemsPerPage * page)) {
-			links."next" = this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
-				qp << ("$k" == "page" ? ["$k": Math.min((page + 1), lastPage)] : ["$k":v]) })
+			links."next" = ['href': this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
+				qp << ("$k" == "page" ? ["$k": Math.min((page + 1), lastPage)] : ["$k":v]) })]
 		}
 
 		return links
@@ -97,12 +97,18 @@ class HalCollectionBuilderService {
 	
 
 	protected getEmbedded = { queryParams, model -> 
+		if(total != 0){
 
-		def offset = itemsPerPage * ((page < lastPage) ? page : lastPage) // Starting item of the page
+			def offset = itemsPerPage * (Math.min(page, lastPage)) // Starting item of the page
 
-		def max = (itemsPerPage + offset - 1) // Max quantity of items
+			def max = Math.max(itemsPerPage + offset - 1, 0) // Max quantity of items
 
-		return ["collection" : halBuilderService.buildModelList(model[offset..Math.min(max, (total - 1))])]
+			def tot = Math.max(total - 1, 0) // Max quantity of items in the last page
+
+			return ["collection" : halBuilderService.buildModelList(model[offset..Math.min(max, tot)])]
+		} 
+
+		return ["collection" : [:]]
 
 	}
 
