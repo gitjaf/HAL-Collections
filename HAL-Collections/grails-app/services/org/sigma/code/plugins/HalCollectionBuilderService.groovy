@@ -87,7 +87,7 @@ class HalCollectionBuilderService {
 			}
 	
 
-		if(page < lastPage && total > (itemsPerPage * page)) {
+		if(page < lastPage) {
 			links."next" = ['href': this.getLinkTo(controller, action, queryParams.inject([:]) { qp, k, v ->
 				qp << ("$k" == "page" ? ["$k": Math.min((page + 1), lastPage)] : ["$k":v]) })]
 		}
