@@ -41,6 +41,12 @@ class HalCollectionBuilderService {
 
 		lastPage = (new BigDecimal((total / itemsPerPage), new MathContext(1, RoundingMode.DOWN))) as Integer
 
+		/* Si la division del total de elementos por la cantidad de elementos es exacta entonces
+		* la cantidad de paginas es 1 menos que el resultado de la division asumiendo que la cantidad
+		* de elementos a mostrar por paginas sean multiplos de 10
+		*/
+		lastPage =  (total > 0 && ((total % itemsPerPage)  > 0)) ? lastPage : lastPage - 1 
+
 		page = ((queryParams.page as Integer) <= lastPage ? queryParams.page as Integer : 0)
 
 		representation.data = queryParams.inject([:]) {qp, k, v -> qp << ["$k":v]}
